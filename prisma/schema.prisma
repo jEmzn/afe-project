@@ -230,39 +230,5 @@ model fall_records {
   fall_id        Int            @id @default(autoincrement())
   users_id       Int
   takecare_id    Int
-  fall_timestamp DateTime?      @default(now()) @db.Timestamp(6)
-  fall_latitude  String?        @default("0") @db.VarChar(255)
-  fall_longitude String?        @default("0") @db.VarChar(255)
-  x_axis         Float
-  y_axis         Float
-  z_axis         Float
-  fall_status    Int?           @default(0)
-  noti_time      DateTime?      @db.Timestamp(6)
-  noti_status    Int?
-  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], map: "fk_takecare_fall_records")
-  users          users          @relation(fields: [users_id], references: [users_id], map: "fk_users_fall_records")
-}
-
-model heartrate_records {
-  heartrate_id   Int            @id @default(autoincrement())
-  users_id       Int
-  takecare_id    Int
-  bpm            Int
-  timestamp      DateTime?      @default(now()) @db.Timestamp(6)
-  status         Int?           @default(1)
-  noti_time      DateTime?      @db.Timestamp(6)
-  noti_status    Int?
-  record_date    DateTime?      @default(dbgenerated("CURRENT_DATE")) @db.Date
-  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_takecareperson_hr")
-  users          users          @relation(fields: [users_id], references: [users_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_hr")
-}
-
-model heartrate_settings {
-  id             Int            @id @default(autoincrement())
-  users_id       Int
-  takecare_id    Int
-  max_bpm        Int
-  min_bpm        Int
-  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_takecareperson_hrset")
-  users          users          @relation(fields: [users_id], references: [users_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_hrset")
+  fall_timestamp DateTime?      @default(now()) @db.T
 }
