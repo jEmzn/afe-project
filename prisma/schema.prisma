@@ -28,60 +28,70 @@ model marrystatus {
 }
 
 model users {
-  users_id             Int               @id @default(autoincrement())
-  users_line_id        String?           @db.VarChar(33)
-  users_fname          String            @db.VarChar(100)
-  users_sname          String            @db.VarChar(100)
-  users_status_onweb   Int               @default(0)
-  users_number         String?           @db.VarChar(10)
-  users_moo            String?           @db.VarChar(5)
-  users_road           String?           @db.VarChar(200)
-  users_tubon          String?           @db.VarChar(100)
-  users_amphur         String?           @db.VarChar(100)
-  users_province       String?           @db.VarChar(100)
-  users_postcode       String?           @db.VarChar(5)
-  users_tel1           String?           @db.VarChar(12)
-  users_passwd         String            @db.VarChar(100)
+  users_id             Int                    @id @default(autoincrement())
+  users_line_id        String?                @db.VarChar(33)
+  users_fname          String                 @db.VarChar(100)
+  users_sname          String                 @db.VarChar(100)
+  users_status_onweb   Int                    @default(0)
+  users_number         String?                @db.VarChar(10)
+  users_moo            String?                @db.VarChar(5)
+  users_road           String?                @db.VarChar(200)
+  users_tubon          String?                @db.VarChar(100)
+  users_amphur         String?                @db.VarChar(100)
+  users_province       String?                @db.VarChar(100)
+  users_postcode       String?                @db.VarChar(5)
+  users_tel1           String?                @db.VarChar(12)
+  users_passwd         String                 @db.VarChar(100)
   users_pin            Int
   status_id            Int
-  users_alert_battery  Int?              @default(0)
-  users_status_active  Int               @default(1)
-  users_related_borrow String?           @db.VarChar(255)
+  users_alert_battery  Int?                   @default(0)
+  users_status_active  Int                    @default(1)
+  users_related_borrow String?                @db.VarChar(255)
   users_token          String?
-  users_user           String?           @db.VarChar(100)
-  approved_borrows     borrowequipment[] @relation("borrow_approver")
-  return_borrows       borrowequipment[] @relation("borrow_return_user_id")
+  users_user           String?                @db.VarChar(100)
+  approved_borrows     borrowequipment[]      @relation("borrow_approver")
+  return_borrows       borrowequipment[]      @relation("borrow_return_user_id")
   borrowequipment      borrowequipment[]
+  fall_records         fall_records[]
+  heartrate_records    heartrate_records[]
+  heartrate_settings   heartrate_settings[]
   location             location[]
   safezone             safezone[]
   takecareperson       takecareperson[]
-  users_status_id      status            @relation(fields: [status_id], references: [status_id])
+  temperature_records  temperature_records[]
+  temperature_settings temperature_settings[]
+  users_status_id      status                 @relation(fields: [status_id], references: [status_id])
 }
 
 model takecareperson {
-  users_id          Int
-  takecare_id       Int         @id @default(autoincrement())
-  takecare_fname    String      @db.VarChar(100)
-  takecare_sname    String      @db.VarChar(100)
-  takecare_birthday DateTime    @db.Date
-  gender_id         Int
-  marry_id          Int
-  takecare_number   String?     @db.VarChar(10)
-  takecare_moo      String?     @db.VarChar(5)
-  takecare_road     String?     @db.VarChar(200)
-  takecare_tubon    String?     @db.VarChar(100)
-  takecare_amphur   String?     @db.VarChar(100)
-  takecare_province String?     @db.VarChar(100)
-  takecare_postcode String?     @db.VarChar(5)
-  takecare_tel1     String?     @db.VarChar(12)
-  takecare_disease  String?     @db.VarChar(300)
-  takecare_drug     String?     @db.VarChar(300)
-  takecare_status   Int         @default(1)
-  location          location[]
-  safezone          safezone[]
-  gender_id_ref     gender      @relation(fields: [gender_id], references: [gender_id])
-  marry_id_ref      marrystatus @relation(fields: [marry_id], references: [marry_id])
-  users_id_ref      users       @relation(fields: [users_id], references: [users_id])
+  users_id             Int
+  takecare_id          Int                    @id @default(autoincrement())
+  takecare_fname       String                 @db.VarChar(100)
+  takecare_sname       String                 @db.VarChar(100)
+  takecare_birthday    DateTime               @db.Date
+  gender_id            Int
+  marry_id             Int
+  takecare_number      String?                @db.VarChar(10)
+  takecare_moo         String?                @db.VarChar(5)
+  takecare_road        String?                @db.VarChar(200)
+  takecare_tubon       String?                @db.VarChar(100)
+  takecare_amphur      String?                @db.VarChar(100)
+  takecare_province    String?                @db.VarChar(100)
+  takecare_postcode    String?                @db.VarChar(5)
+  takecare_tel1        String?                @db.VarChar(12)
+  takecare_disease     String?                @db.VarChar(300)
+  takecare_drug        String?                @db.VarChar(300)
+  takecare_status      Int                    @default(1)
+  fall_records         fall_records[]
+  heartrate_records    heartrate_records[]
+  heartrate_settings   heartrate_settings[]
+  location             location[]
+  safezone             safezone[]
+  gender_id_ref        gender                 @relation(fields: [gender_id], references: [gender_id])
+  marry_id_ref         marrystatus            @relation(fields: [marry_id], references: [marry_id])
+  users_id_ref         users                  @relation(fields: [users_id], references: [users_id])
+  temperature_records  temperature_records[]
+  temperature_settings temperature_settings[]
 }
 
 model safezone {
@@ -177,9 +187,82 @@ model borrowequipment {
 model borrowequipment_list {
   borrow_id               Int
   borrow_equipment_id     Int             @id @default(autoincrement())
-  borrow_equipment        String          @db.VarChar(255)
-  borrow_equipment_number String          @db.VarChar(255)
   borrow_equipment_status Int             @default(1)
   borrow_equipment_delete DateTime?
+  equipment_id            Int
   borrow_id_ref           borrowequipment @relation(fields: [borrow_id], references: [borrow_id])
+  equipment               equipment       @relation(fields: [equipment_id], references: [equipment_id])
+}
+
+model equipment {
+  equipment_id          Int                    @id @default(autoincrement())
+  equipment_name        String                 @db.VarChar(255)
+  equipment_code        String                 @unique @db.VarChar(100)
+  equipment_status      Int                    @default(1)
+  equipment_create_date DateTime?              @default(now()) @db.Timestamp(6)
+  equipment_update_date DateTime?              @db.Timestamp(6)
+  borrowequipment_list  borrowequipment_list[]
+}
+
+model fall_records {
+  fall_id        Int            @id @default(autoincrement())
+  users_id       Int
+  takecare_id    Int
+  fall_timestamp DateTime?      @default(now()) @db.Timestamp(6)
+  fall_latitude  String?        @default("0") @db.VarChar(255)
+  fall_longitude String?        @default("0") @db.VarChar(255)
+  x_axis         Float
+  y_axis         Float
+  z_axis         Float
+  fall_status    Int?           @default(0)
+  noti_time      DateTime?      @db.Timestamp(6)
+  noti_status    Int?
+  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], map: "fk_takecare_fall_records")
+  users          users          @relation(fields: [users_id], references: [users_id], map: "fk_users_fall_records")
+}
+
+model heartrate_records {
+  heartrate_id   Int            @id @default(autoincrement())
+  users_id       Int
+  takecare_id    Int
+  bpm            Int
+  timestamp      DateTime?      @default(now()) @db.Timestamp(6)
+  status         Int?           @default(1)
+  noti_time      DateTime?      @db.Timestamp(6)
+  noti_status    Int?
+  record_date    DateTime?      @default(dbgenerated("CURRENT_DATE")) @db.Date
+  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_takecareperson_hr")
+  users          users          @relation(fields: [users_id], references: [users_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_hr")
+}
+
+model heartrate_settings {
+  id             Int            @id @default(autoincrement())
+  users_id       Int
+  takecare_id    Int
+  max_bpm        Int
+  min_bpm        Int
+  takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_takecareperson_hrset")
+  users          users          @relation(fields: [users_id], references: [users_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_hrset")
+}
+
+model temperature_records {
+  temperature_id    Int            @id @default(autoincrement())
+  users_id          Int
+  takecare_id       Int
+  temperature_value Float
+  record_date       DateTime?      @default(dbgenerated("CURRENT_DATE")) @db.Date
+  status            Int            @default(0)
+  noti_time         DateTime?      @db.Timestamp(6)
+  noti_status       Int?
+  takecareperson    takecareperson @relation(fields: [takecare_id], references: [takecare_id], map: "fk_takecare_temperature_records")
+  users             users          @relation(fields: [users_id], references: [users_id], map: "fk_users_temperature_records")
+}
+
+model temperature_settings {
+  setting_id      Int            @id @default(autoincrement())
+  users_id        Int
+  takecare_id     Int
+  max_temperature Float          @default(37)
+  takecareperson  takecareperson @relation(fields: [takecare_id], references: [takecare_id], map: "fk_takecare_temperature_settings")
+  users           users          @relation(fields: [users_id], references: [users_id], map: "fk_users_temperature_settings")
 }
