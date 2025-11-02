@@ -95,7 +95,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
             if (status === 0) {
                 noti_status = 0;
                 noti_time = null;
-                console.log("อุณหภูมิอยู่ในระดับปกติ");
+                // console.log("อุณหภูมิอยู่ในระดับปกติ");
+                console.log(`อุณหภูมิอยู่ในระดับปกติ (${temperatureValue} °C)`);
             }
 
             if (temp) {
