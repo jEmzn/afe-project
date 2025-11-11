@@ -132,7 +132,7 @@ export default async function handle(
             headers: LINE_HEADER,
           });
         }
-
+        console.log(`สถานะการส่งการแจ้งเตือนล้มไปยัง Line ${res.status}`);
         noti_status = 1;
         noti_time = new Date();
       } else {
