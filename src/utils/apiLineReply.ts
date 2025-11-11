@@ -4,8 +4,7 @@ import prisma from "@/lib/prisma";
 const WEB_API = process.env.WEB_API_URL;
 const LINE_MESSAGING_API = "https://api.line.me/v2/bot/message/reply";
 // const LINE_PUSH_MESSAGING_API = 'https://api.line.me/v2/bot/message/push';
-const LINE_PUSH_MESSAGING_API =
-  "https://api.line.me/v2/bot/message/validate/push";
+const LINE_PUSH_MESSAGING_API ="https://api.line.me/v2/bot/message/validate/push";
 const LINE_PROFILE_API = "https://api.line.me/v2/bot/profile";
 const LINE_HEADER = {
   "Content-Type": "application/json",
