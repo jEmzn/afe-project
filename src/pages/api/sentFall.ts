@@ -126,7 +126,8 @@ export default async function handle(
           const lineResponseFallLocation = await axios.post(LINE_PUSH_MESSAGING_API, locationRequest, {
             headers: LINE_HEADER,
         });
-        console.log(`สถานะการส่งการแจ้งเตือนล้มไปยัง Line ${lineResponseFallLocation.status}`);
+        console.log(`สถานะการส่งการแจ้งเตือนแหน่งล้มไปยัง Line HTTP ${lineResponseFallLocation.status}`);
+        console.log("ส่ง payload ไปยัง LINE", JSON.stringify(locationRequest, null, 2));
     }
         noti_status = 1;
         noti_time = new Date();
