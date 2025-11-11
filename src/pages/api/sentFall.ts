@@ -41,12 +41,10 @@ export default async function handle(
         body.latitude === undefined ||
         body.longitude === undefined
       ) {
-        return res
-          .status(400)
-          .json({
-            message: "error",
-            data: "Missing parameter: users_id, takecare_id, x_axis, y_axis, z_axis, fall_status, latitude, longitude",
-          });
+        return res.status(400).json({
+          message: "error",
+          data: "Missing parameter: users_id, takecare_id, x_axis, y_axis, z_axis, fall_status, latitude, longitude",
+        });
       }
 
       if (
@@ -54,12 +52,10 @@ export default async function handle(
         _.isNaN(Number(body.takecare_id)) ||
         _.isNaN(Number(body.fall_status))
       ) {
-        return res
-          .status(400)
-          .json({
-            message: "error",
-            data: "users_id, takecare_id, fall_status ต้องเป็นตัวเลข",
-          });
+        return res.status(400).json({
+          message: "error",
+          data: "users_id, takecare_id, fall_status ต้องเป็นตัวเลข",
+        });
       }
 
       const user = await prisma.users.findFirst({
@@ -71,12 +67,10 @@ export default async function handle(
       });
 
       if (!user || !takecareperson) {
-        return res
-          .status(200)
-          .json({
-            message: "error",
-            data: "ไม่พบข้อมูล user หรือ takecareperson",
-          });
+        return res.status(200).json({
+          message: "error",
+          data: "ไม่พบข้อมูล user หรือ takecareperson",
+        });
       }
 
       const lastFall = await prisma.fall_records.findFirst({
@@ -128,11 +122,11 @@ export default async function handle(
               },
             ],
           };
-          await axios.post(LINE_PUSH_MESSAGING_API, locationRequest, {
+          const lineResponseFallLocation = await axios.post(LINE_PUSH_MESSAGING_API, locationRequest, {
             headers: LINE_HEADER,
-          });
-        }
-        console.log(`สถานะการส่งการแจ้งเตือนล้มไปยัง Line ${res.status}`);
+        });
+        console.log(`สถานะการส่งการแจ้งเตือนล้มไปยัง Line ${lineResponseFallLocation.status}`);
+    }
         noti_status = 1;
         noti_time = new Date();
       } else {
