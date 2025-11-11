@@ -8,10 +8,10 @@ import {
 import axios from "axios";
 import moment from "moment";
 
-// const LINE_PUSH_MESSAGING_API = 'https://api.line.me/v2/bot/message/push ';
-// const LINE_PUSH_MESSAGING_API = 'https://cf0788fb-02e8-40a5-9a27-77c1c9cd0700.mock.pstmn.io';
-const LINE_PUSH_MESSAGING_API =
-  "https://api.line.me/v2/bot/message/validate/push";
+const LINE_PUSH_MESSAGING_API = process.env.DRY_RUN === "true"
+    ? "https://api.line.me/v2/bot/message/validate/push"
+    : "https://api.line.me/v2/bot/message/push";
+
 const LINE_HEADER = {
   "Content-Type": "application/json",
   Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN_LINE}`,
