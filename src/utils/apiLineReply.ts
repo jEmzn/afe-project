@@ -1338,6 +1338,7 @@ export const replyNotification = async ({
     await axios.post(LINE_PUSH_MESSAGING_API, requestData, {
       headers: LINE_HEADER,
     });
+    console.log(message)
   } catch (error) {
     if (error instanceof Error) {
       console.log(error.message);
@@ -1455,6 +1456,7 @@ export const replyNotificationPostback = async ({
     await axios.post(LINE_PUSH_MESSAGING_API, requestData, {
       headers: LINE_HEADER,
     });
+    console.log(message)
   } catch (error) {
     if (error instanceof Error) {
       console.log(error.message);

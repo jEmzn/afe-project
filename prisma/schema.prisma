@@ -95,15 +95,16 @@ model takecareperson {
 }
 
 model safezone {
-  takecare_id     Int
-  users_id        Int
-  safezone_id     Int            @id @default(autoincrement())
-  safez_latitude  String         @default("0") @db.VarChar(255)
-  safez_longitude String         @default("0") @db.VarChar(255)
-  safez_radiuslv1 Int            @default(0)
-  safez_radiuslv2 Int            @default(0)
-  takecare_id_ref takecareperson @relation(fields: [takecare_id], references: [takecare_id])
-  users_id_ref    users          @relation(fields: [users_id], references: [users_id])
+  takecare_id        Int
+  users_id           Int
+  safezone_id        Int            @id @default(autoincrement())
+  safez_latitude     String         @default("0") @db.VarChar(255)
+  safez_longitude    String         @default("0") @db.VarChar(255)
+  safez_radiuslv1    Int            @default(0)
+  safez_radiuslv2    Int            @default(0)
+  status_tracking_on Boolean        @default(true)
+  takecare_id_ref    takecareperson @relation(fields: [takecare_id], references: [takecare_id])
+  users_id_ref       users          @relation(fields: [users_id], references: [users_id])
 }
 
 model location {

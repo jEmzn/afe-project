@@ -75,6 +75,15 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
                 }
             });
 
+            const trackgps = await prisma.safezone.findFirst({
+                where: {
+                    users_id: user.users_id,
+                    takecare_id: takecareperson.takecare_id
+                },
+                select: { status_tracking_on: true}
+            })
+            // console.log("shouldTrack:", trackgps?.status_tracking_on ?? true);
+
          
             if (
                 status === 1 &&
@@ -104,6 +113,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
                 noti_time = null;
                 console.log("อัตราการเต้นของหัวใจอยู่ในระดับปกติ");
             }
+
+
 
           
             if (lastHR) {
