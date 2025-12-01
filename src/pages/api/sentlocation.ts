@@ -4,7 +4,18 @@ import {
   replyNotification,
   replyNotificationPostback,
 } from "@/utils/apiLineReply";
+import axios from "axios";
 import moment from "moment";
+
+const LINE_PUSH_MESSAGING_API =
+  process.env.DRY_RUN === "true"
+    ? "https://api.line.me/v2/bot/message/validate/push"
+    : "https://api.line.me/v2/bot/message/push";
+
+const LINE_HEADER = {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN_LINE}`,
+};
 
 export default async function handle(
   req: NextApiRequest,
@@ -84,8 +95,76 @@ export default async function handle(
         locat_noti_status: 1,
       };
 
+      // แจ้งเตือน (เหมือนเดิม)
+      const user = await prisma.users.findFirst({
+        where: { users_id: Number(uId) },
+      });
+      const takecareperson = await prisma.takecareperson.findFirst({
+        where: {
+          users_id: Number(uId),
+          takecare_id: Number(takecare_id),
+          takecare_status: 1,
+        },
+      });
+
       // กำหนดค่า Default เป็น true ไว้ก่อนเผื่อหาไม่เจอ
       const shouldTrack = safezone?.status_tracking_on ?? true;
+
+      const lat = Number(latitude);
+      const long = Number(longitude);
+
+      let stop_em = false
+
+      // 2. เช็คเงื่อนไข: "ต้องรออยู่ (True)" และ "พิกัดต้องไม่ใช่ 0.0"
+      if (
+        latest?.is_waiting_for_location === true &&
+        lat !== 0 &&
+        long !== 0
+      ) {
+        console.log(
+          "🚩 พบ User ที่รอแผนที่จุดเกิดเหตุอยู่ -> กำลังส่ง LINE..."
+        );
+
+        // 3. ส่ง LINE แผนที่ตามไป (ใช้ฟังก์ชัน pushLocationToLine หรือ axios)
+        if (latest.users_id) {
+          const locationRequest = {
+            to: user?.users_line_id,
+            messages: [
+              {
+                type: "location",
+                title: "📍 จุดเกิดเหตุ (ตำแหน่งล่าสุด)",
+                address: `พิกัด: ${lat}, ${long}`,
+                latitude: lat,
+                longitude: long,
+              },
+              {
+                type: "text",
+                text: "นี่คือตำแหน่งหลังจากเกิดการล้มครับ",
+              },
+            ],
+          };
+
+          // ยิง LINE API (อย่าลืม import axios และ config header ให้ครบ)
+          try {
+            await axios.post(
+              LINE_PUSH_MESSAGING_API,
+              locationRequest,
+              {
+                headers: LINE_HEADER
+              }
+            );
+            console.log("✅ ส่งแผนที่สำเร็จ");
+          } catch (err) {
+            console.error("❌ ส่งแผนที่ล้มเหลว:", err);
+          }
+        }
+
+        // 4. ✅ ภารกิจจบแล้ว! รีบแก้ค่ากลับเป็น false ทันที (เดี๋ยวรอบหน้าส่งซ้ำ)
+        await prisma.location.updateMany({
+          where: { users_id: Number(uId) },
+          data: { is_waiting_for_location: false },
+        });
+      }
 
       // ถ้ามีแถวเดิม -> update ด้วย location_id ที่ถูกต้อง, ถ้าไม่มีก็ create
       let savedLocation;
@@ -100,27 +179,13 @@ export default async function handle(
 
       // ถ้าสถานะเป็น 0 ไม่ต้องแจ้งเตือน
       if (calculatedStatus === 0) {
-        return res
-          .status(200)
-          .json({
-            message: "success",
-            data: savedLocation,
-            command_tracking: shouldTrack,
-          });
-      }
+        return res.status(200).json({
+          message: "success",
+          data: savedLocation,
+          command_tracking: shouldTrack,
+        });
+      }      
 
-      // แจ้งเตือน (เหมือนเดิม)
-      const user = await prisma.users.findFirst({
-        where: { users_id: Number(uId) },
-      });
-      const takecareperson = await prisma.takecareperson.findFirst({
-        where: {
-          users_id: Number(uId),
-          takecare_id: Number(takecare_id),
-          takecare_status: 1,
-        },
-      });
-      
       // ถ้าพบข้อมูลของผู้ใช้(ผู้ดูแล) และ ผู้ที่มีภาวะพึ่งพิง และ อนุญาติการตรวจจับออกนอกเขต
       // การแจ้งเตือนจะทำงาน
       if (user && takecareperson && shouldTrack) {
@@ -151,6 +216,7 @@ export default async function handle(
         message: "success",
         data: savedLocation,
         command_tracking: shouldTrack,
+        stop_emergency: stop_em,
       });
     } catch (error) {
       console.error("Error:", error);
