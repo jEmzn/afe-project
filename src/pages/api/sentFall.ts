@@ -8,7 +8,8 @@ import {
 import axios from "axios";
 import moment from "moment";
 
-const LINE_PUSH_MESSAGING_API = process.env.DRY_RUN === "true"
+const LINE_PUSH_MESSAGING_API =
+  process.env.DRY_RUN === "true"
     ? "https://api.line.me/v2/bot/message/validate/push"
     : "https://api.line.me/v2/bot/message/push";
 
@@ -20,7 +21,7 @@ const LINE_HEADER = {
 type Data = {
   message: string;
   data?: any;
-  stop_emergency?: boolean,
+  stop_emergency?: boolean;
 };
 
 export default async function handle(
@@ -83,13 +84,21 @@ export default async function handle(
         orderBy: { noti_time: "desc" },
       });
 
+      const tracking_on = await prisma.safezone.findFirst({
+        where: {
+          users_id: user.users_id,
+          takecare_id: takecareperson.takecare_id,
+        },
+        select: { status_tracking_on: true },
+      });
+
       const fallStatus = Number(body.fall_status);
       let noti_time: Date | null = null;
       let noti_status: number | null = null;
       const latitude = Number(body.latitude);
       const longitude = Number(body.longitude);
-      const isLocationValid = latitude !== 0 && longitude !== 0; 
-      let stop_em = Boolean() // ตัวสั่งปิด gps เมื่อปลุกให้มันตื่นตอนกำลังปิดการตรวจจับออกนอกเขต(ปิดGPS)
+      let isLocationValid = latitude !== 0 && longitude !== 0;
+      let stop_em = false; // ตัวสั่งปิด gps เมื่อปลุกให้มันตื่นตอนกำลังปิดการตรวจจับออกนอกเขต(ปิดGPS)
 
       if (
         (fallStatus === 2 || fallStatus === 3) &&
@@ -116,11 +125,10 @@ export default async function handle(
 
           // const latitude = Number(body.latitude);
           // const longitude = Number(body.longitude);
-          // const isLocationValid = latitude !== 0 && longitude !== 0; 
+          // const isLocationValid = latitude !== 0 && longitude !== 0;
 
           // ตำแหน่ง
           if (isLocationValid) {
-            stop_em = true
             const locationRequest = {
               to: replyToken,
               messages: [
@@ -140,6 +148,9 @@ export default async function handle(
                 headers: LINE_HEADER,
               }
             );
+
+            stop_em = true; // สั่งปิด GPS เมื่อส่งตำแหน่งล้ม
+
             console.log(
               `สถานะการส่งการแจ้งเตือนแหน่งล้มไปยัง Line HTTP ${lineResponseFallLocation.status}`
             );
@@ -147,10 +158,8 @@ export default async function handle(
               "ส่ง payload ไปยัง LINE",
               JSON.stringify(locationRequest, null, 2)
             );
-          } else {
-            stop_em = false
           }
-    }
+        }
         noti_status = 1;
         noti_time = new Date();
       } else {
@@ -161,6 +170,9 @@ export default async function handle(
         );
       }
 
+      if (fallStatus === 1) {
+        isLocationValid = true; // ถ้าสถานะล้มเป็นปกติ ให้ถือว่าตำแหน่งถูกต้องเสมอ
+      }
       await prisma.location.updateMany({
         where: {
           users_id: user.users_id,
@@ -185,13 +197,17 @@ export default async function handle(
           noti_status: noti_status,
         },
       });
-
-      return res
-        .status(200)
-        .json({ message: "success", data: "บันทึกข้อมูลเรียบร้อย" , stop_emergency: stop_em});
+      console.log("stop_emergency:", stop_em);
+      return res.status(200).json({
+        message: "success",
+        data: "บันทึกข้อมูลเรียบร้อย",
+        stop_emergency: stop_em,
+      });
     } catch (error) {
       console.error("API /sentFall error:", error);
-      return res.status(400).json({ message: "error", data: error });
+      return res
+        .status(400)
+        .json({ message: "error", data: error, stop_emergency: false });
     }
   } else {
     res.setHeader("Allow", ["PUT", "POST"]);
