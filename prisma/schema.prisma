@@ -119,6 +119,8 @@ model location {
   locat_battery     Int            @default(0)
   locat_noti_time   DateTime?
   locat_noti_status Int?
+  is_waiting_for_location Boolean @default(false)
+  is_waiting_for_view_location Boolean @default(false)
   takecare_id_ref   takecareperson @relation(fields: [takecare_id], references: [takecare_id])
   users_id_ref      users          @relation(fields: [users_id], references: [users_id])
 }
