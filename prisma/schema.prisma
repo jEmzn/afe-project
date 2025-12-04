@@ -92,6 +92,11 @@ model takecareperson {
   users_id_ref         users                  @relation(fields: [users_id], references: [users_id])
   temperature_records  temperature_records[]
   temperature_settings temperature_settings[]
+  heartrate_alert_sent Boolean                @default(false)
+  temp_alert_sent      Boolean                @default(false)
+  safezone_r1_alert_sent  Boolean             @default(false)
+  safezone_th_alert_sent  Boolean             @default(false)
+  safezone_r2_alert_sent  Boolean             @default(false)
 }
 
 model safezone {
@@ -117,6 +122,8 @@ model location {
   locat_status      Int            @default(1)
   locat_distance    Int            @default(0)
   locat_battery     Int            @default(0)
+  accident_latitude    String      @default("0") @db.VarChar(255)
+  accident_longitude   String      @default("0") @db.VarChar(255)
   locat_noti_time   DateTime?
   locat_noti_status Int?
   is_waiting_for_location Boolean @default(false)

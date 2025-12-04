@@ -59,12 +59,13 @@ export default async function handle(
           .status(404)
           .json({ message: "error", data: "ไม่พบข้อมูล Safezone" });
       }
-
+      
       const r1 = safezone.safez_radiuslv1;
       const r2 = safezone.safez_radiuslv2;
-      const safezoneThreshold = r2 * 0.8;
+      const safezoneThreshold = r2 * 0.8; // กำหนดเกณฑ์เตือนที่ 80% ของ r2
       const distNum = Number(distance);
-
+      
+      
       // คำนวณสถานะ
       let calculatedStatus = 0;
       if (distNum <= r1) {
@@ -262,6 +263,28 @@ export default async function handle(
 
       // ถ้าสถานะเป็น 0 ไม่ต้องแจ้งเตือน
       if (calculatedStatus === 0) {
+        if (
+          shouldTrack === true &&
+          (takecareperson?.safezone_r1_alert_sent ||
+            takecareperson?.safezone_r2_alert_sent ||
+            takecareperson?.safezone_th_alert_sent)
+        ) {
+          // รีเซ็ตสถานะการแจ้งเตือนเมื่อกลับเข้ามาในเขตปลอดภัย
+          await prisma.takecareperson.updateMany({
+            where: {
+              users_id: Number(uId),
+              takecare_id: Number(takecare_id),
+            },
+            data: {
+              safezone_r1_alert_sent: false,
+              safezone_r2_alert_sent: false,
+              safezone_th_alert_sent: false,
+            },
+          });
+          const replyToken = user?.users_line_id || "";
+          const message = `คุณ ${takecareperson?.takecare_fname} ${takecareperson?.takecare_sname} \nกลับเข้ามาในเขตปลอดภัยแล้ว`;
+          if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+        }
         return res.status(200).json({
           message: "success",
           data: savedLocation,
@@ -271,39 +294,113 @@ export default async function handle(
         });
       }
 
-      // ถ้าพบข้อมูลของผู้ใช้(ผู้ดูแล) และ ผู้ที่มีภาวะพึ่งพิง และ อนุญาติการตรวจจับออกนอกเขต
-      // การแจ้งเตือนจะทำงาน
+      /* 
+      =================== Safezone Notification Logic ===================
+      ถ้าพบข้อมูลของผู้ใช้(ผู้ดูแล) และ ผู้ที่มีภาวะพึ่งพิง และ อนุญาติการตรวจจับออกนอกเขต
+      การแจ้งเตือนจะทำงาน 
+      */
       if (user && takecareperson && shouldTrack) {
         const replyToken = user.users_line_id || "";
-
+        // ======== Safezone Threshold Notifications ========
         if (calculatedStatus === 3) {
-          const warningMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
-          if (replyToken)
-            await replyNotification({ replyToken, message: warningMessage });
-        } else if (calculatedStatus === 1) {
-          const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 1 แล้ว`;
-          if (replyToken) await replyNotification({ replyToken, message });
-        } else if (calculatedStatus === 2) {
-          const postbackMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 2 แล้ว`;
-          if (replyToken) {
-            await replyNotificationPostback({
-              userId: Number(uId),
-              takecarepersonId: Number(takecare_id),
-              type: "safezone",
-              message: postbackMessage,
-              replyToken,
+          if (takecareperson.safezone_r2_alert_sent) {
+            // รีเซ็ตสถานะการแจ้งเตือนเมื่อเข้าใกล้เขตปลอดภัย ชั้นที่ 2
+            await prisma.takecareperson.updateMany({
+              where: {
+                users_id: Number(uId),
+                takecare_id: Number(takecare_id),
+              },
+              data: {
+                safezone_r2_alert_sent: false,
+                safezone_th_alert_sent: true,
+              },
             });
+            const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nกลับเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
+            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+          } else if (!takecareperson.safezone_th_alert_sent) {
+            // ส่งแจ้งเตือนครั้งแรกเมื่อเข้าใกล้เขตปลอดภัย ชั้นที่ 2
+            await prisma.takecareperson.updateMany({
+              where: {
+                users_id: Number(uId),
+                takecare_id: Number(takecare_id),
+              },
+              data: {
+                safezone_th_alert_sent: true,
+              },
+            });
+            const warningMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
+            if (replyToken)
+              await replyNotification({ replyToken, message: warningMessage, headers: "แจ้งเตือนเขตปลอดภัย" });
+          }
+          // ======== Safezone Level 1 Notifications ========
+        } else if (calculatedStatus === 1) {
+          if (
+            takecareperson.safezone_r2_alert_sent ||
+            takecareperson.safezone_th_alert_sent
+          ) {
+            // รีเซ็ตสถานะการแจ้งเตือนเมื่อกลับเข้ามาในเขตปลอดภัย
+            await prisma.takecareperson.updateMany({
+              where: {
+                users_id: Number(uId),
+                takecare_id: Number(takecare_id),
+              },
+              data: {
+                safezone_r2_alert_sent: false,
+                safezone_th_alert_sent: false,
+                safezone_r1_alert_sent: true,
+              },
+            });
+            const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nกลับเข้ามาในเขตปลอดภัย ชั้นที่ 2 แล้ว`;
+            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+          } else if (!takecareperson.safezone_r1_alert_sent) {
+            // ส่งแจ้งเตือนครั้งแรกเมื่อออกนอกเขตชั้นที่ 1
+            await prisma.takecareperson.updateMany({
+              where: {
+                users_id: Number(uId),
+                takecare_id: Number(takecare_id),
+              },
+              data: {
+                safezone_r1_alert_sent: true,
+              },
+            });
+            const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 1 แล้ว`;
+            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+          }
+          // ======== Safezone Level 2 Notifications ========
+        } else if (calculatedStatus === 2) {
+          if (!takecareperson.safezone_r2_alert_sent) {
+            // ส่งแจ้งเตือนครั้งแรกเมื่อออกนอกเขตชั้นที่ 2
+            await prisma.takecareperson.updateMany({
+              where: {
+                users_id: Number(uId),
+                takecare_id: Number(takecare_id),
+              },
+              data: {
+                safezone_r2_alert_sent: true,
+              },
+            });
+            const postbackMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 2 แล้ว`;
+            if (replyToken) {
+              await replyNotificationPostback({
+                userId: Number(uId),
+                takecarepersonId: Number(takecare_id),
+                type: "safezone",
+                message: postbackMessage,
+                replyToken,
+              });
+            }
           }
         }
-      }
 
-      return res.status(200).json({
-        message: "success",
-        data: savedLocation,
-        command_tracking: shouldTrack,
-        stop_emergency: stop_em,
-        request_location: req_view_location,
-      });
+        console.log("calculatedStatus:", calculatedStatus);
+        return res.status(200).json({
+          message: "success",
+          data: savedLocation,
+          command_tracking: shouldTrack,
+          stop_emergency: stop_em,
+          request_location: req_view_location,
+        });
+      } // Safezone Notification Logic Ended
     } catch (error) {
       console.error("Error:", error);
       return res

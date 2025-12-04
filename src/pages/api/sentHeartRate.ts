@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import _ from 'lodash';
-import { replyNotificationPostbackHeart } from '@/utils/apiLineReply'; // สมมุติว่าใช้แจ้งเตือน LINE
+import { replyNotificationPostbackHeart, replyNotification } from '@/utils/apiLineReply'; // สมมุติว่าใช้แจ้งเตือน LINE
 import moment from 'moment';
 
 type Data = {
@@ -89,7 +89,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
                 status === 1 &&
                 (!lastHR ||
                     lastHR.noti_status !== 1 ||
-                    moment().diff(moment(lastHR.noti_time), 'minutes') >= 5)
+                    moment().diff(moment(lastHR.noti_time), 'minutes') >= 5)  && !takecareperson.heartrate_alert_sent
             ) {
                 const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname}\nชีพจรเกินค่าที่กำหนด: ${bpmValue} bpm`;
                 
@@ -103,11 +103,38 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
                         message
                     });
                 }
+                await prisma.takecareperson.update({
+                    where: {
+                        takecare_id: takecareperson.takecare_id
+                    },
+                    data: {
+                        heartrate_alert_sent: true
+                    }
+                });
 
                 noti_status = 1;
                 noti_time = new Date();
+            } // end notify high HR
+            else if (takecareperson.heartrate_alert_sent && status === 0) {
+                await prisma.takecareperson.update({
+                    where: {
+                        takecare_id: takecareperson.takecare_id
+                    },
+                    data: {
+                        heartrate_alert_sent: false
+                    }
+                });
+                const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname}\nชีพจรกลับสู่ภาวะปกติ: ${bpmValue} bpm`;
+                const replyToken = user.users_line_id || '';
+                if (replyToken) {
+                    await replyNotification({
+                        replyToken,
+                        message,
+                        headers: "แจ้งเตือนชีพจร"
+                    });
+                }
             }
-
+            
             if (status === 0) {
                 noti_status = 0;
                 noti_time = null;

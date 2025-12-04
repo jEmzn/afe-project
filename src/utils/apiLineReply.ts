@@ -24,6 +24,7 @@ interface ReplyRegistration {
 interface ReplyNotification {
   replyToken: string;
   message: string;
+  headers: string;
   groupLineId?: string | null;
 }
 interface ReplyNotificationPostback {
@@ -1268,6 +1269,7 @@ export const replyUserData = async ({
 export const replyNotification = async ({
   replyToken,
   message,
+  headers,
 }: ReplyNotification) => {
   try {
     const requestData = {
@@ -1288,7 +1290,7 @@ export const replyNotification = async ({
                   contents: [
                     {
                       type: "span",
-                      text: "แจ้งเตือนเขตปลอดภัย",
+                      text: headers,
                       color: "#FC0303",
                       size: "xl",
                       weight: "bold",

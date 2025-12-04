@@ -327,6 +327,7 @@ export default async function handle(
               await replyNotification({
                 replyToken,
                 message: "ส่งคำขอความช่วยเหลือแล้ว",
+                headers: "แจ้งเตือนเขตปลอดภัย",
               });
             }
           } else if (postback.type === "accept") {
@@ -341,6 +342,7 @@ export default async function handle(
               await replyNotification({
                 replyToken,
                 message: "ตอบรับเคสขอความช่วยเหลือแล้ว",
+                headers: "แจ้งเตือนเคสขอความช่วยเหลือ",
               });
             }
           } else if (postback.type === "close") {
@@ -355,6 +357,7 @@ export default async function handle(
               await replyNotification({
                 replyToken,
                 message: "ปิดเคสขอความช่วยเหลือแล้ว",
+                headers: "แจ้งเตือนเคสขอความช่วยเหลือ",
               });
             }
           }
