@@ -124,7 +124,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
                         heartrate_alert_sent: false
                     }
                 });
-                const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname}\nชีพจรกลับสู่ภาวะปกติ: ${bpmValue} bpm`;
+                const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname}\nชีพจรกลับสู่ค่าที่กำหนด: ${bpmValue} bpm`;
                 const replyToken = user.users_line_id || '';
                 if (replyToken) {
                     await replyNotification({

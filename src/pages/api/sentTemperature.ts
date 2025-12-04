@@ -21,12 +21,10 @@ export default async function handle(
       const body = req.body;
 
       if (!body.uId || !body.takecare_id || !body.temperature_value) {
-        return res
-          .status(400)
-          .json({
-            message: "error",
-            data: "ไม่พบพารามิเตอร์ uId, takecare_id, temperature_value",
-          });
+        return res.status(400).json({
+          message: "error",
+          data: "ไม่พบพารามิเตอร์ uId, takecare_id, temperature_value",
+        });
       }
 
       if (
@@ -34,12 +32,10 @@ export default async function handle(
         _.isNaN(Number(body.takecare_id)) ||
         _.isNaN(Number(body.status))
       ) {
-        return res
-          .status(400)
-          .json({
-            message: "error",
-            data: "พารามิเตอร์ uId, takecare_id, status ไม่ใช่ตัวเลข",
-          });
+        return res.status(400).json({
+          message: "error",
+          data: "พารามิเตอร์ uId, takecare_id, status ไม่ใช่ตัวเลข",
+        });
       }
 
       const user = await prisma.users.findFirst({
@@ -59,12 +55,10 @@ export default async function handle(
       });
 
       if (!user || !takecareperson) {
-        return res
-          .status(200)
-          .json({
-            message: "error",
-            data: "ไม่พบข้อมูล user หรือ takecareperson",
-          });
+        return res.status(200).json({
+          message: "error",
+          data: "ไม่พบข้อมูล user หรือ takecareperson",
+        });
       }
 
       const settingTemp = await prisma.temperature_settings.findFirst({
@@ -106,7 +100,7 @@ export default async function handle(
           moment().diff(moment(temp.noti_time), "minutes") >= 5) &&
         !takecareperson.temp_alert_sent
       ) {
-        const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nอุณหภูมิร่างกายเกินค่าที่กำหนด`;
+        const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nอุณหภูมิร่างกายเกินค่าที่กำหนด: ${temperatureValue} °C`;
 
         const replyToken = user.users_line_id || "";
         if (replyToken) {
@@ -127,7 +121,7 @@ export default async function handle(
           where: { takecare_id: takecareperson.takecare_id },
           data: { temp_alert_sent: false },
         });
-        const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nอุณหภูมิร่างกายกลับสู่ภาวะปกติ: ${temperatureValue} °C`;
+        const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nอุณหภูมิร่างกายกลับสู่ค่าที่กำหนด: ${temperatureValue} °C`;
         const replyToken = user.users_line_id || "";
         if (replyToken) {
           await replyNotification({
