@@ -156,6 +156,7 @@ model extendedhelp {
   exten_received_user_id Int?
   exted_closed_date      DateTime?
   exten_closed_user_id   Int?
+  is_waiting_for_group_notification Boolean @default(false)
 }
 
 model groupLine {

@@ -1,29 +1,44 @@
-import { encrypt, parseQueryString } from '@/utils/helpers'
-import * as api from '@/lib/listAPI'
-import axios from 'axios';
+import { encrypt, parseQueryString } from "@/utils/helpers";
+import * as api from "@/lib/listAPI";
+import axios from "axios";
+import prisma from "@/lib/prisma";
 
-import { replyNotification, replyNoti } from '@/utils/apiLineGroup';
+import { replyNotification, replyNoti } from "@/utils/apiLineGroup";
 
 interface PostbackSafezoneProps {
-    userLineId      : string;
-    takecarepersonId: number;
+  userLineId: string;
+  takecarepersonId: number;
 }
 
-const getLocation = async (takecare_id: number, users_id: number, safezone_id:number) => {
-	const response = await axios.get(`${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`);
-	if(response.data?.data){
-		return response.data.data
-	}else{
-		return null
-	}
-}
-export const postbackHeartRate = async ({ userLineId, takecarepersonId }: PostbackSafezoneProps) => {
+const getLocation = async (
+  takecare_id: number,
+  users_id: number,
+  safezone_id: number
+) => {
+  const response = await axios.get(
+    `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`
+  );
+  if (response.data?.data) {
+    return response.data.data;
+  } else {
+    return null;
+  }
+};
+export const postbackHeartRate = async ({
+  userLineId,
+  takecarepersonId,
+}: PostbackSafezoneProps) => {
   try {
     const resUser = await api.getUser(userLineId);
-    const resTakecareperson = await api.getTakecareperson(takecarepersonId.toString());
+    const resTakecareperson = await api.getTakecareperson(
+      takecarepersonId.toString()
+    );
 
     if (resUser && resTakecareperson) {
-      const resSafezone = await api.getSafezone(resTakecareperson.takecare_id, resUser.users_id);
+      const resSafezone = await api.getSafezone(
+        resTakecareperson.takecare_id,
+        resUser.users_id
+      );
       if (resSafezone) {
         const responseLocation = await getLocation(
           resTakecareperson.takecare_id,
@@ -31,19 +46,25 @@ export const postbackHeartRate = async ({ userLineId, takecarepersonId }: Postba
           resSafezone.safezone_id
         );
 
-        const resExtendedHelp = await api.getExtendedHelp(resTakecareperson.takecare_id, resUser.users_id);
+        const resExtendedHelp = await api.getExtendedHelp(
+          resTakecareperson.takecare_id,
+          resUser.users_id
+        );
         let extendedHelpId = null;
 
         if (resExtendedHelp) {
           // ถ้ามีเคสเดิม → อัปเดตว่า "ส่งอีกครั้ง"
           extendedHelpId = resExtendedHelp.exten_id;
-          await api.updateExtendedHelp({ extenId: extendedHelpId, typeStatus: 'sendAgain' });
+          await api.updateExtendedHelp({
+            extenId: extendedHelpId,
+            typeStatus: "sendAgain",
+          });
         } else {
           // ถ้าไม่มีเคส → สร้างใหม่
           const data = {
             takecareId: resTakecareperson.takecare_id,
             usersId: resUser.users_id,
-            typeStatus: 'save',
+            typeStatus: "save",
             safezLatitude: resSafezone.safez_latitude,
             safezLongitude: resSafezone.safez_longitude,
           };
@@ -51,14 +72,29 @@ export const postbackHeartRate = async ({ userLineId, takecarepersonId }: Postba
           extendedHelpId = resNewId;
         }
 
-        // ส่งการแจ้งเตือนกลับ (ไม่ต้องใส่ message)
-        await replyNotification({
-          resUser,
-          resTakecareperson,
-          resSafezone,
-          extendedHelpId,
-          locationData: responseLocation,
-        });
+        // เช็คว่าตำแหน่งเป็น 0.0 หรือไม่
+        const lat = Number(responseLocation?.locat_latitude || 0);
+        const long = Number(responseLocation?.locat_longitude || 0);
+
+        if (lat === 0 || long === 0) {
+          // ตำแหน่งเป็น 0.0 → ปักธงรอและไม่ส่งแจ้งเตือนทันที
+          console.log(
+            "📍 ตำแหน่งเป็น 0.0 -> ปักธงรอตำแหน่งสำหรับ extendedhelp"
+          );
+          await prisma.extendedhelp.update({
+            where: { exten_id: extendedHelpId },
+            data: { is_waiting_for_group_notification: true },
+          });
+        } else {
+          // ตำแหน่งถูกต้อง → ส่งการแจ้งเตือนกลับ
+          await replyNotification({
+            resUser,
+            resTakecareperson,
+            resSafezone,
+            extendedHelpId,
+            locationData: responseLocation,
+          });
+        }
 
         return resUser.users_line_id;
       }
@@ -71,13 +107,21 @@ export const postbackHeartRate = async ({ userLineId, takecarepersonId }: Postba
   }
 };
 
-export const postbackFall = async ({ userLineId, takecarepersonId }: PostbackSafezoneProps) => {
+export const postbackFall = async ({
+  userLineId,
+  takecarepersonId,
+}: PostbackSafezoneProps) => {
   try {
     const resUser = await api.getUser(userLineId);
-    const resTakecareperson = await api.getTakecareperson(takecarepersonId.toString());
+    const resTakecareperson = await api.getTakecareperson(
+      takecarepersonId.toString()
+    );
 
     if (resUser && resTakecareperson) {
-      const resSafezone = await api.getSafezone(resTakecareperson.takecare_id, resUser.users_id);
+      const resSafezone = await api.getSafezone(
+        resTakecareperson.takecare_id,
+        resUser.users_id
+      );
       if (resSafezone) {
         const responseLocation = await getLocation(
           resTakecareperson.takecare_id,
@@ -85,34 +129,55 @@ export const postbackFall = async ({ userLineId, takecarepersonId }: PostbackSaf
           resSafezone.safezone_id
         );
 
-        const resExtendedHelp = await api.getExtendedHelp(resTakecareperson.takecare_id, resUser.users_id);
+        const resExtendedHelp = await api.getExtendedHelp(
+          resTakecareperson.takecare_id,
+          resUser.users_id
+        );
         let extendedHelpId = null;
 
         if (resExtendedHelp) {
           // มีเคสเดิม → อัปเดตเคสเดิมว่า "ส่งอีกครั้ง"
           extendedHelpId = resExtendedHelp.exten_id;
-          await api.updateExtendedHelp({ extenId: extendedHelpId, typeStatus: 'sendAgain' });
+          await api.updateExtendedHelp({
+            extenId: extendedHelpId,
+            typeStatus: "sendAgain",
+          });
         } else {
           // ไม่มีเคส → สร้างเคสใหม่
           const data = {
-            takecareId    : resTakecareperson.takecare_id,
-            usersId       : resUser.users_id,
-            typeStatus    : 'save',
-            safezLatitude : resSafezone.safez_latitude,
+            takecareId: resTakecareperson.takecare_id,
+            usersId: resUser.users_id,
+            typeStatus: "save",
+            safezLatitude: resSafezone.safez_latitude,
             safezLongitude: resSafezone.safez_longitude,
           };
           const resNewId = await api.saveExtendedHelp(data);
           extendedHelpId = resNewId;
         }
 
-        // ส่งการแจ้งเตือนกลับ
-        await replyNotification({
-          resUser,
-          resTakecareperson,
-          resSafezone,
-          extendedHelpId,
-          locationData: responseLocation,
-        });
+        // เช็คว่าตำแหน่งเป็น 0.0 หรือไม่
+        const lat = Number(responseLocation?.locat_latitude || 0);
+        const long = Number(responseLocation?.locat_longitude || 0);
+
+        if (lat === 0 || long === 0) {
+          // ตำแหน่งเป็น 0.0 → ปักธงรอและไม่ส่งแจ้งเตือนทันที
+          console.log(
+            "📍 ตำแหน่งเป็น 0.0 -> ปักธงรอตำแหน่งสำหรับ extendedhelp"
+          );
+          await prisma.extendedhelp.update({
+            where: { exten_id: extendedHelpId },
+            data: { is_waiting_for_group_notification: true },
+          });
+        } else {
+          // ตำแหน่งถูกต้อง → ส่งการแจ้งเตือนกลับ
+          await replyNotification({
+            resUser,
+            resTakecareperson,
+            resSafezone,
+            extendedHelpId,
+            locationData: responseLocation,
+          });
+        }
 
         // ส่ง Line ID กลับเป็นตัวบ่งชี้ว่า success
         return resUser.users_line_id;
@@ -126,13 +191,21 @@ export const postbackFall = async ({ userLineId, takecarepersonId }: PostbackSaf
   }
 };
 // ปรับให้ postbackTemp ทำงานเหมือน postbackSafezone
-export const postbackTemp = async ({ userLineId, takecarepersonId }: PostbackSafezoneProps) => {
+export const postbackTemp = async ({
+  userLineId,
+  takecarepersonId,
+}: PostbackSafezoneProps) => {
   try {
     const resUser = await api.getUser(userLineId);
-    const resTakecareperson = await api.getTakecareperson(takecarepersonId.toString());
+    const resTakecareperson = await api.getTakecareperson(
+      takecarepersonId.toString()
+    );
 
     if (resUser && resTakecareperson) {
-      const resSafezone = await api.getSafezone(resTakecareperson.takecare_id, resUser.users_id);
+      const resSafezone = await api.getSafezone(
+        resTakecareperson.takecare_id,
+        resUser.users_id
+      );
       if (resSafezone) {
         const responseLocation = await getLocation(
           resTakecareperson.takecare_id,
@@ -140,19 +213,25 @@ export const postbackTemp = async ({ userLineId, takecarepersonId }: PostbackSaf
           resSafezone.safezone_id
         );
 
-        const resExtendedHelp = await api.getExtendedHelp(resTakecareperson.takecare_id, resUser.users_id);
+        const resExtendedHelp = await api.getExtendedHelp(
+          resTakecareperson.takecare_id,
+          resUser.users_id
+        );
         let extendedHelpId = null;
 
         if (resExtendedHelp) {
           // ถ้ามีเคสเดิม → อัปเดตเคสเดิมว่า "ส่งอีกครั้ง"
           extendedHelpId = resExtendedHelp.exten_id;
-          await api.updateExtendedHelp({ extenId: extendedHelpId, typeStatus: 'sendAgain' });
+          await api.updateExtendedHelp({
+            extenId: extendedHelpId,
+            typeStatus: "sendAgain",
+          });
         } else {
           // ถ้าไม่มีเคส → สร้างเคสใหม่
           const data = {
             takecareId: resTakecareperson.takecare_id,
             usersId: resUser.users_id,
-            typeStatus: 'save',
+            typeStatus: "save",
             safezLatitude: resSafezone.safez_latitude,
             safezLongitude: resSafezone.safez_longitude,
           };
@@ -160,14 +239,29 @@ export const postbackTemp = async ({ userLineId, takecarepersonId }: PostbackSaf
           extendedHelpId = resNewId;
         }
 
-        // ส่งการแจ้งเตือนกลับ
-        await replyNotification({
-          resUser,
-          resTakecareperson,
-          resSafezone,
-          extendedHelpId,
-          locationData: responseLocation,
-        });
+        // เช็คว่าตำแหน่งเป็น 0.0 หรือไม่
+        const lat = Number(responseLocation?.locat_latitude || 0);
+        const long = Number(responseLocation?.locat_longitude || 0);
+
+        if (lat === 0 || long === 0) {
+          // ตำแหน่งเป็น 0.0 → ปักธงรอและไม่ส่งแจ้งเตือนทันที
+          console.log(
+            "📍 ตำแหน่งเป็น 0.0 -> ปักธงรอตำแหน่งสำหรับ extendedhelp"
+          );
+          await prisma.extendedhelp.update({
+            where: { exten_id: extendedHelpId },
+            data: { is_waiting_for_group_notification: true },
+          });
+        } else {
+          // ตำแหน่งถูกต้อง → ส่งการแจ้งเตือนกลับ
+          await replyNotification({
+            resUser,
+            resTakecareperson,
+            resSafezone,
+            extendedHelpId,
+            locationData: responseLocation,
+          });
+        }
 
         // ส่ง Line ID กลับเป็นตัวบ่งชี้ว่า success (เหมือน safezone)
         return resUser.users_line_id;
@@ -181,95 +275,164 @@ export const postbackTemp = async ({ userLineId, takecarepersonId }: PostbackSaf
   }
 };
 
-
 //
-export const postbackSafezone = async ({userLineId, takecarepersonId}:PostbackSafezoneProps) => {
+export const postbackSafezone = async ({
+  userLineId,
+  takecarepersonId,
+}: PostbackSafezoneProps) => {
   try {
-      const resUser           = await api.getUser(userLineId)
-      const resTakecareperson = await api.getTakecareperson(takecarepersonId.toString())
+    const resUser = await api.getUser(userLineId);
+    const resTakecareperson = await api.getTakecareperson(
+      takecarepersonId.toString()
+    );
 
-      if(resUser && resTakecareperson){
-        const resSafezone = await api.getSafezone(resTakecareperson.takecare_id, resUser.users_id)
-        if(resSafezone){
-            const responeLocation = await getLocation(resTakecareperson.takecare_id, resUser.users_id, resSafezone.safezone_id)
-            const resExtendedHelp = await api.getExtendedHelp(resTakecareperson.takecare_id, resUser.users_id)
-            let extendedHelpId = null
-            if(resExtendedHelp){
-                extendedHelpId = resExtendedHelp.exten_id
-                await api.updateExtendedHelp({ extenId: extendedHelpId, typeStatus: 'sendAgain'})
-            }else{
-                const data = {
-                     takecareId : resTakecareperson.takecare_id,
-                     usersId    : resUser.users_id,
-                     typeStatus : 'save',
-                     safezLatitude : resSafezone.safez_latitude,
-                     safezLongitude : resSafezone.safez_longitude
-                }
-                const resExtendedHelpId = await api.saveExtendedHelp(data)
-                extendedHelpId = resExtendedHelpId
-            }
-          
-              await replyNotification({ resUser, resTakecareperson, resSafezone, extendedHelpId, locationData:responeLocation })
-              return resUser.users_line_id
+    if (resUser && resTakecareperson) {
+      const resSafezone = await api.getSafezone(
+        resTakecareperson.takecare_id,
+        resUser.users_id
+      );
+      if (resSafezone) {
+        const responeLocation = await getLocation(
+          resTakecareperson.takecare_id,
+          resUser.users_id,
+          resSafezone.safezone_id
+        );
+        const resExtendedHelp = await api.getExtendedHelp(
+          resTakecareperson.takecare_id,
+          resUser.users_id
+        );
+        let extendedHelpId = null;
+        if (resExtendedHelp) {
+          extendedHelpId = resExtendedHelp.exten_id;
+          await api.updateExtendedHelp({
+            extenId: extendedHelpId,
+            typeStatus: "sendAgain",
+          });
+        } else {
+          const data = {
+            takecareId: resTakecareperson.takecare_id,
+            usersId: resUser.users_id,
+            typeStatus: "save",
+            safezLatitude: resSafezone.safez_latitude,
+            safezLongitude: resSafezone.safez_longitude,
+          };
+          const resExtendedHelpId = await api.saveExtendedHelp(data);
+          extendedHelpId = resExtendedHelpId;
         }
+
+        // ตำแหน่งถูกต้อง → ส่งการแจ้งเตือนกลับ
+        await replyNotification({
+          resUser,
+          resTakecareperson,
+          resSafezone,
+          extendedHelpId,
+          locationData: responeLocation,
+        });
+        return resUser.users_line_id;
       }
-      return null
+    }
+    return null;
   } catch (error) {
-      console.log("🚀 ~ postbackSafezone ~ error:", error)
-    return error
-    
+    console.log("🚀 ~ postbackSafezone ~ error:", error);
+    return error;
   }
-}
+};
 
 export const postbackAccept = async (data: any) => {
   try {
-      const resUser = await api.getUser(data.userIdAccept)
-      if(!resUser){
-          await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'ไม่พบข้อมูลของคุณไม่สามารถรับเคสได้' })
+    const resUser = await api.getUser(data.userIdAccept);
+    if (!resUser) {
+      await replyNoti({
+        replyToken: data.groupId,
+        userIdAccept: data.userIdAccept,
+        message: "ไม่พบข้อมูลของคุณไม่สามารถรับเคสได้",
+      });
+      return null;
+    } else {
+      const resExtendedHelp = await api.getExtendedHelpById(data.extenId);
+      if (resExtendedHelp) {
+        if (
+          resExtendedHelp.exten_received_date &&
+          resExtendedHelp.exten_received_user_id
+        ) {
+          await replyNoti({
+            replyToken: data.groupId,
+            userIdAccept: data.userIdAccept,
+            message: "มีผู้รับเคสช่วยเหลือแล้ว",
+          });
           return null;
-      }else{
-        const resExtendedHelp = await api.getExtendedHelpById(data.extenId)
-        if(resExtendedHelp){
-            if(resExtendedHelp.exten_received_date && resExtendedHelp.exten_received_user_id){
-                await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'มีผู้รับเคสช่วยเหลือแล้ว' })
-                return null;
-            }else{
-                await api.updateExtendedHelp({ extenId: data.extenId, typeStatus: 'received', extenReceivedUserId: resUser.users_id })
-                await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'รับเคสช่วยเหลือแล้ว' })
-                return data.userLineId
-            }
+        } else {
+          await api.updateExtendedHelp({
+            extenId: data.extenId,
+            typeStatus: "received",
+            extenReceivedUserId: resUser.users_id,
+          });
+          await replyNoti({
+            replyToken: data.groupId,
+            userIdAccept: data.userIdAccept,
+            message: "รับเคสช่วยเหลือแล้ว",
+          });
+          return data.userLineId;
         }
       }
-    return null
+    }
+    return null;
   } catch (error) {
-      return error
+    return error;
   }
-}
+};
 
 export const postbackClose = async (data: any) => {
-    try {
-        const resUser = await api.getUser(data.userIdAccept)
-        if(!resUser){
-            await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'ไม่พบข้อมูลของคุณไม่สามารถปิดเคสได้' })
-            return null;
-        }else{
-          const resExtendedHelp = await api.getExtendedHelpById(data.extenId)
-          if(resExtendedHelp){
-              if(resExtendedHelp.exted_closed_date && resExtendedHelp.exten_closed_user_id){
-                  await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'มีผู้ปิดเคสช่วยเหลือแล้ว' })
-                  return null;
-              }if(!resExtendedHelp.exten_received_date && !resExtendedHelp.exten_received_user_id){
-                await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'ไม่สามารถปิดเคสได้ เนื่องจากยังไม่ได้ตอบรับการช่วยเหลือ' })
-                return null;
-              }else{
-                  await api.updateExtendedHelp({ extenId: data.extenId, typeStatus: 'close', extenClosedUserId: resUser.users_id })
-                  await replyNoti({ replyToken: data.groupId, userIdAccept: data.userIdAccept, message: 'ปิดเคสช่วยเหลือแล้ว' })
-                  return data.userLineId
-              }
-          }
+  try {
+    const resUser = await api.getUser(data.userIdAccept);
+    if (!resUser) {
+      await replyNoti({
+        replyToken: data.groupId,
+        userIdAccept: data.userIdAccept,
+        message: "ไม่พบข้อมูลของคุณไม่สามารถปิดเคสได้",
+      });
+      return null;
+    } else {
+      const resExtendedHelp = await api.getExtendedHelpById(data.extenId);
+      if (resExtendedHelp) {
+        if (
+          resExtendedHelp.exted_closed_date &&
+          resExtendedHelp.exten_closed_user_id
+        ) {
+          await replyNoti({
+            replyToken: data.groupId,
+            userIdAccept: data.userIdAccept,
+            message: "มีผู้ปิดเคสช่วยเหลือแล้ว",
+          });
+          return null;
         }
-      return null
-    } catch (error) {
-        return error
+        if (
+          !resExtendedHelp.exten_received_date &&
+          !resExtendedHelp.exten_received_user_id
+        ) {
+          await replyNoti({
+            replyToken: data.groupId,
+            userIdAccept: data.userIdAccept,
+            message: "ไม่สามารถปิดเคสได้ เนื่องจากยังไม่ได้ตอบรับการช่วยเหลือ",
+          });
+          return null;
+        } else {
+          await api.updateExtendedHelp({
+            extenId: data.extenId,
+            typeStatus: "close",
+            extenClosedUserId: resUser.users_id,
+          });
+          await replyNoti({
+            replyToken: data.groupId,
+            userIdAccept: data.userIdAccept,
+            message: "ปิดเคสช่วยเหลือแล้ว",
+          });
+          return data.userLineId;
+        }
+      }
     }
+    return null;
+  } catch (error) {
+    return error;
   }
+};

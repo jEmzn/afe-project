@@ -5,6 +5,7 @@ import {
   replyNotificationPostback,
   replyLocation,
 } from "@/utils/apiLineReply";
+import { replyNotification as replyNotificationGroup } from "@/utils/apiLineGroup";
 import axios from "axios";
 import moment from "moment";
 import * as api from "@/lib/listAPI";
@@ -59,13 +60,12 @@ export default async function handle(
           .status(404)
           .json({ message: "error", data: "ไม่พบข้อมูล Safezone" });
       }
-      
+
       const r1 = safezone.safez_radiuslv1;
       const r2 = safezone.safez_radiuslv2;
       const safezoneThreshold = r2 * 0.8; // กำหนดเกณฑ์เตือนที่ 80% ของ r2
       const distNum = Number(distance);
-      
-      
+
       // คำนวณสถานะ
       let calculatedStatus = 0;
       if (distNum <= r1) {
@@ -123,6 +123,7 @@ export default async function handle(
 
       let stop_em = false;
       let req_view_location = false;
+      let req_extended_help_location = false; // 🆕 flag สำหรับขอตำแหน่งเพื่อส่งแจ้งเตือนกลุ่ม
 
       // 2. เช็คเงื่อนไข: "ต้องรออยู่ (True)" และ "พิกัดต้องไม่ใช่ 0.0"
       if (latest?.is_waiting_for_location === true && lat !== 0 && long !== 0) {
@@ -250,6 +251,65 @@ export default async function handle(
         req_view_location = true;
       }
 
+      // 🆕 เช็ค extendedhelp ที่รอส่งแจ้งเตือนไปกลุ่ม (กรณีกดปุ่มขอความช่วยเหลือเพิ่มเติมแต่ตำแหน่งเป็น 0.0)
+      const pendingExtendedHelp = await prisma.extendedhelp.findFirst({
+        where: {
+          takecare_id: Number(takecare_id),
+          user_id: Number(uId),
+          is_waiting_for_group_notification: true,
+          exten_received_date: null, // ยังไม่มีคนรับเคส
+        },
+      });
+
+      if (pendingExtendedHelp) {
+        if (lat !== 0 && long !== 0) {
+          // ตำแหน่งถูกต้อง -> ส่งแจ้งเตือนไปกลุ่มได้เลย
+          console.log(
+            "📍 พบ extendedhelp ที่รอส่งแจ้งเตือนกลุ่ม -> กำลังส่ง..."
+          );
+
+          // ดึงข้อมูลที่จำเป็นสำหรับส่งแจ้งเตือน
+          const resUser = await api.getUser(user?.users_line_id || "");
+          const resTakecareperson = await api.getTakecareperson(
+            takecare_id.toString()
+          );
+          const resSafezone = await api.getSafezone(
+            Number(takecare_id),
+            Number(uId)
+          );
+
+          if (resUser && resTakecareperson && resSafezone) {
+            // ส่งแจ้งเตือนไปกลุ่มพร้อมตำแหน่งที่ถูกต้อง
+            await replyNotificationGroup({
+              resUser,
+              resTakecareperson,
+              resSafezone,
+              extendedHelpId: pendingExtendedHelp.exten_id,
+              locationData: {
+                locat_latitude: lat,
+                locat_longitude: long,
+              },
+            });
+
+            // อัปเดตสถานะว่าส่งไปแล้ว
+            await prisma.extendedhelp.update({
+              where: { exten_id: pendingExtendedHelp.exten_id },
+              data: { is_waiting_for_group_notification: false },
+            });
+            stop_em = true;
+
+            console.log("✅ ส่งแจ้งเตือนกลุ่มสำหรับ extendedhelp สำเร็จ");
+          }
+        } else {
+          // ตำแหน่งยังเป็น 0.0 -> บอกแอปให้ขอตำแหน่ง
+          console.log(
+            "📍 extendedhelp รอตำแหน่งอยู่ -> ส่ง flag ให้แอปขอตำแหน่ง"
+          );
+          req_extended_help_location = true;
+          stop_em = false;
+        }
+      }
+
       // ถ้ามีแถวเดิม -> update ด้วย location_id ที่ถูกต้อง, ถ้าไม่มีก็ create
       let savedLocation;
       if (latest) {
@@ -283,13 +343,19 @@ export default async function handle(
           });
           const replyToken = user?.users_line_id || "";
           const message = `คุณ ${takecareperson?.takecare_fname} ${takecareperson?.takecare_sname} \nกลับเข้ามาในเขตปลอดภัยแล้ว`;
-          if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+          if (replyToken)
+            await replyNotification({
+              replyToken,
+              message,
+              headers: "แจ้งเตือนเขตปลอดภัย",
+            });
         }
         return res.status(200).json({
           message: "success",
           data: savedLocation,
           command_tracking: shouldTrack,
           request_location: req_view_location,
+          request_extended_help_location: req_extended_help_location,
           stop_emergency: stop_em,
         });
       }
@@ -316,7 +382,12 @@ export default async function handle(
               },
             });
             const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nกลับเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
-            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+            if (replyToken)
+              await replyNotification({
+                replyToken,
+                message,
+                headers: "แจ้งเตือนเขตปลอดภัย",
+              });
           } else if (!takecareperson.safezone_th_alert_sent) {
             // ส่งแจ้งเตือนครั้งแรกเมื่อเข้าใกล้เขตปลอดภัย ชั้นที่ 2
             await prisma.takecareperson.updateMany({
@@ -330,7 +401,11 @@ export default async function handle(
             });
             const warningMessage = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nเข้าใกล้เขตปลอดภัย ชั้นที่ 2 แล้ว`;
             if (replyToken)
-              await replyNotification({ replyToken, message: warningMessage, headers: "แจ้งเตือนเขตปลอดภัย" });
+              await replyNotification({
+                replyToken,
+                message: warningMessage,
+                headers: "แจ้งเตือนเขตปลอดภัย",
+              });
           }
           // ======== Safezone Level 1 Notifications ========
         } else if (calculatedStatus === 1) {
@@ -351,7 +426,12 @@ export default async function handle(
               },
             });
             const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nกลับเข้ามาในเขตปลอดภัย ชั้นที่ 2 แล้ว`;
-            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+            if (replyToken)
+              await replyNotification({
+                replyToken,
+                message,
+                headers: "แจ้งเตือนเขตปลอดภัย",
+              });
           } else if (!takecareperson.safezone_r1_alert_sent) {
             // ส่งแจ้งเตือนครั้งแรกเมื่อออกนอกเขตชั้นที่ 1
             await prisma.takecareperson.updateMany({
@@ -364,7 +444,12 @@ export default async function handle(
               },
             });
             const message = `คุณ ${takecareperson.takecare_fname} ${takecareperson.takecare_sname} \nออกนอกเขตปลอดภัย ชั้นที่ 1 แล้ว`;
-            if (replyToken) await replyNotification({ replyToken, message, headers: "แจ้งเตือนเขตปลอดภัย" });
+            if (replyToken)
+              await replyNotification({
+                replyToken,
+                message,
+                headers: "แจ้งเตือนเขตปลอดภัย",
+              });
           }
           // ======== Safezone Level 2 Notifications ========
         } else if (calculatedStatus === 2) {
@@ -399,6 +484,7 @@ export default async function handle(
           command_tracking: shouldTrack,
           stop_emergency: stop_em,
           request_location: req_view_location,
+          request_extended_help_location: req_extended_help_location,
         });
       } // Safezone Notification Logic Ended
     } catch (error) {
